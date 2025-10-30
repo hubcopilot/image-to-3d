@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>3D Spinning Image Tool</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #111;
+      font-family: sans-serif;
+      color: #aaa;
+      gap: 20px;
+    }
+    .scene { width: 300px; height: 300px; perspective: 1000px; }
+    .card { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; animation: spin 6s linear infinite; }
+    .card img { width: 100%; height: 100%; object-fit: cover; backface-visibility: hidden; border-radius: 16px; }
+    .card::after { content: ""; position: absolute; inset: 0; background: #222; border-radius: 16px; backface-visibility: hidden; transform: rotateY(180deg); }
+    @keyframes spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+    .drop-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 24px; background: rgba(255,255,255,0.1); border: 4px dashed #666; color: #fff; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
+    .drop-overlay.show { opacity: 1; }
+    .upload-btn { background: #ff0077; color: #fff; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; border: none; transition: background 0.2s; }
+    .upload-btn:hover { background: #e6006b; }
+    input[type="file"] { display: none; }
+    .download-btn { display: none; background: #00c853; color: #fff; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; border: none; }
+  </style>
+</head>
+<body>
+  <div class="scene">
+    <div class="card">
+      <img src="assets/placeholder.png" id="preview"/>
+    </div>
+  </div>
+
+  <label class="upload-btn" for="fileInput">Upload JPEG/PNG</label>
+  <input type="file" id="fileInput" accept=".jpg,.jpeg,.png">
+  <button id="downloadBtn" class="download-btn">Download OBS HTML</button>
+
+  <div class="drop-overlay" id="overlay">Drop a JPEG or PNG here</div>
+
+  <script>
+    const preview = document.getElementById("preview");
+    const overlay = document.getElementById("overlay");
+    const fileInput = document.getElementById("fileInput");
+    const downloadBtn = document.getElementById("downloadBtn");
+    let generatedHTML = null;
+
+    function handleFile(file) {
+      if (file && (file.type === "image/jpeg" || file.type === "image/png")) {
+        const reader = new FileReader();
+        reader.onload = evt => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = 800; canvas.height = 800;
+            const ctx = canvas.getContext("2d");
+            const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+            const x = (canvas.width / 2) - (img.width / 2) * scale;
+            const y = (canvas.height / 2) - (img.height / 2) * scale;
+            ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+            const dataURL = canvas.toDataURL("image/png");
+            preview.src = dataURL;
+
+            generatedHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>OBS 3D Image</title>
+  <style>
+    body{margin:0;background:transparent;display:flex;align-items:center;justify-content:center;height:100vh;overflow:hidden}
+    .scene{width:300px;height:300px;perspective:1000px}
+    .card{width:100%;height:100%;transform-style:preserve-3d;animation:spin 6s linear infinite}
+    .card img{width:100%;height:100%;object-fit:cover;backface-visibility:hidden;border-radius:16px}
+    .card::after{content:"";position:absolute;inset:0;background:#222;border-radius:16px;backface-visibility:hidden;transform:rotateY(180deg)}
+    @keyframes spin{from{transform:rotateY(0deg)}to{transform:rotateY(360deg)}}
+  </style>
+</head>
+<body>
+  <div class="scene">
+    <div class="card"><img src="${dataURL}"/></div>
+  </div>
+</body>
+</html>`;
+            downloadBtn.style.display = "inline-block";
+          };
+          img.src = evt.target.result;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        alert("Only JPEG and PNG images are allowed.");
+      }
+    }
+
+    downloadBtn.addEventListener("click", () => {
+      if (!generatedHTML) return;
+      const blob = new Blob([generatedHTML], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "obs-3d-image.html";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    window.addEventListener("dragover", e => { e.preventDefault(); overlay.classList.add("show"); });
+    window.addEventListener("dragleave", e => { if (e.target === document.body) overlay.classList.remove("show"); });
+    window.addEventListener("drop", e => { e.preventDefault(); overlay.classList.remove("show"); handleFile(e.dataTransfer.files[0]); });
+    fileInput.addEventListener("change", e => { handleFile(e.target.files[0]); });
+  </script>
+</body>
+</html>
